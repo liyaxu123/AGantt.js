@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>1.甘特图的基本使用</title>
+    <link rel="stylesheet" href="../dist/AGantt.css">
+  </head>
+  <body>
+    <h1>甘特图的基本使用</h1>
+    <div id="app" style="height: 500px;"></div>
+  </body>
+  <script src="../dist/AGantt.umd.js"></script>
+  <script>
+    const tasks = [
+      {
+        id: "Task 1",
+        name: "任务1",
+        start: "2024-09-11",
+        end: "2024-09-31",
+        progress: 20,
+        dependencies: "Task 2, Task 3",
+      },
+      {
+        id: "Task 2",
+        name: "任务2",
+        start: "2024-09-13",
+        end: "2024-09-31",
+        progress: 40,
+        dependencies: "Task 2, Task 3",
+      },
+      {
+        id: "Task 3",
+        name: "任务3",
+        start: "2024-09-17",
+        end: "2024-09-31",
+        progress: 60,
+        dependencies: "Task 2, Task 3",
+      },
+    ];
+
+    const gantt = new AGantt("#app", tasks, {
+      viewType: "day", // 视图类型
+      showViewTypeSwitch: true, // 是否显示视图切换按钮
+      showBackToday: true, // 是否显示返回今日按钮
+      lineColor: "#f0f0f0", // 线条颜色
+      curDayLineColor: "#1890ff", // 当天日期的线条颜色
+      weekBarBg: "#fafbfd", // 周末条的背景色
+      onViewTypeChange: (viewType) => {
+        console.log(viewType);
+      },
+    }); // 使用甘特图插件
+  </script>
+</html>

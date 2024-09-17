@@ -1,0 +1,29 @@
+{
+  "name": "agantt",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "rollup -c -w",
+    "build": "rollup -c",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@babel/preset-env": "^7.25.4",
+    "@rollup/plugin-babel": "^6.0.4",
+    "@rollup/plugin-commonjs": "^26.0.1",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "autoprefixer": "^10.4.20",
+    "less": "^4.2.0",
+    "rollup": "^4.21.3",
+    "rollup-plugin-postcss": "^4.0.2"
+  },
+  "dependencies": {
+    "dayjs": "^1.11.13"
+  }
+}
