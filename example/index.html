@@ -4,43 +4,73 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>1.甘特图的基本使用</title>
-    <link rel="stylesheet" href="../dist/AGantt.css">
+    <link rel="stylesheet" href="../dist/AGantt.css" />
   </head>
   <body>
     <h1>甘特图的基本使用</h1>
-    <div id="app" style="height: 500px;"></div>
+    <div id="app" style="height: 500px"></div>
   </body>
   <script src="../dist/AGantt.umd.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dayjs/dayjs.min.js"></script>
   <script>
-    const tasks = [
-      {
-        id: "Task 1",
-        name: "任务1",
-        start: "2024-09-11",
-        end: "2024-09-31",
-        progress: 20,
-        dependencies: "Task 2, Task 3",
-      },
-      {
-        id: "Task 2",
-        name: "任务2",
-        start: "2024-09-13",
-        end: "2024-09-31",
-        progress: 40,
-        dependencies: "Task 2, Task 3",
-      },
-      {
-        id: "Task 3",
-        name: "任务3",
-        start: "2024-09-17",
-        end: "2024-09-31",
-        progress: 60,
-        dependencies: "Task 2, Task 3",
-      },
-    ];
+    function getRandomInt(min, max) {
+      min = Math.ceil(min); // 确保最小值是包含的
+      max = Math.floor(max); // 确保最大值是包含的
+      return Math.floor(Math.random() * (max - min + 1)) + min; // 加1是因为区间是开区间
+    }
+
+    const randomTime = (startYear, endYear) => {
+      // 生成随机年份
+      const randomYear =
+        Math.floor(Math.random() * (endYear - startYear + 1)) + startYear;
+
+      // 生成随机月份（0到11，代表1月到12月）
+      const randomMonth = Math.floor(Math.random() * 12);
+
+      // 生成随机日期（1到28天，避免月份长度差异带来的复杂性）
+      const randomDate = Math.floor(Math.random() * 28) + 1;
+
+      // 生成随机小时（0到23）
+      const randomHour = Math.floor(Math.random() * 24);
+
+      // 生成随机分钟（0到59）
+      const randomMinute = Math.floor(Math.random() * 60);
+
+      // 生成随机秒（0到59）
+      const randomSecond = Math.floor(Math.random() * 60);
+
+      // 使用 dayjs 构建随机时间
+      return dayjs()
+        .year(randomYear)
+        .month(randomMonth)
+        .date(randomDate)
+        .hour(randomHour)
+        .minute(randomMinute)
+        .second(randomSecond);
+    };
+
+    function getBarList() {
+      const arr = [];
+      for (let i = 0; i < 200; i++) {
+        const start = randomTime(2024, 2025);
+
+        arr.push({
+          id: i + 1,
+          title: `任务${i + 1}`,
+          startDate: start.format("YYYY-MM-DD"),
+          endDate: dayjs(
+            start + 1000 * 60 * 60 * 24 * getRandomInt(0, 20)
+          ).format("YYYY-MM-DD"),
+        });
+      }
+      return arr;
+    }
+
+    const tasks = getBarList();
+    console.log(tasks);
 
     const gantt = new AGantt("#app", tasks, {
-      viewType: "day", // 视图类型
+      viewType: "day", // 视图类型：quarter
       showViewTypeSwitch: true, // 是否显示视图切换按钮
       showBackToday: true, // 是否显示返回今日按钮
       lineColor: "#f0f0f0", // 线条颜色
@@ -49,6 +79,14 @@
       onViewTypeChange: (viewType) => {
         console.log(viewType);
       },
-    }); // 使用甘特图插件
+      // 点击任务条时触发
+      onTaskBarClick: (taskData) => {
+        alert(taskData.title);
+      },
+      // 点击时间轴时触发
+      onTimelineClick: (data) => {
+        alert(data);
+      },
+    });
   </script>
 </html>

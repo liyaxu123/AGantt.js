@@ -18,6 +18,14 @@
       writable: !1
     }), e;
   }
+  function _defineProperty(e, r, t) {
+    return (r = _toPropertyKey(r)) in e ? Object.defineProperty(e, r, {
+      value: t,
+      enumerable: !0,
+      configurable: !0,
+      writable: !0
+    }) : e[r] = t, e;
+  }
   function _toPrimitive(t, r) {
     if ("object" != typeof t || !t) return t;
     var e = t[Symbol.toPrimitive];
@@ -32,58 +40,6 @@
     var i = _toPrimitive(t, "string");
     return "symbol" == typeof i ? i : i + "";
   }
-
-  // 视图日视图、周视图、月视图、季视图、年视图
-  var viewTypeList = [{
-    type: 'day',
-    label: '日视图',
-    value: 2880 // 一个格子宽度为30px, 一天24*60*60秒 / 30px = 2880秒/px
-  }, {
-    type: 'week',
-    label: '周视图',
-    value: 3600 // 一个格子宽度为168px, 一周24*60*60*7秒 / 168px = 36000秒/px
-  }, {
-    type: 'month',
-    label: '月视图',
-    value: 14400
-  }, {
-    type: 'quarter',
-    label: '季视图',
-    value: 86400
-  }, {
-    type: 'halfYear',
-    label: '年视图',
-    value: 115200
-  }];
-  var getViewTypeConfig = function getViewTypeConfig(viewType) {
-    return viewTypeList.find(function (item) {
-      return item.type === viewType;
-    });
-  };
-
-  // 创建DOM
-  var createElement = function createElement(tagName, className) {
-    var element = document.createElement(tagName);
-    if (className) {
-      element.className = className;
-    }
-    return element;
-  };
-
-  // 创建SVG元素
-  var createSvgElement = function createSvgElement(tagName) {
-    var props = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
-    var element = document.createElementNS('http://www.w3.org/2000/svg', tagName);
-    for (var key in props) {
-      var value = props[key];
-      element.setAttribute(key, value);
-    }
-    return element;
-  };
-  var addPrefixCls = function addPrefixCls(str) {
-    var prefixCls = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 'my-gantt';
-    return "".concat(prefixCls, "-").concat(str);
-  };
 
   var commonjsGlobal = typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : typeof global !== 'undefined' ? global : typeof self !== 'undefined' ? self : {};
 
@@ -469,6 +425,109 @@
   var dayjs_minExports = dayjs_min.exports;
   var dayjs = /*@__PURE__*/getDefaultExportFromCjs(dayjs_minExports);
 
+  // 一天的毫秒数
+  var ONE_DAY_MS = 86400000;
+  // 图表头部时间轴高度
+  var HEADER_HEIGHT = 57;
+  var TOP_PADDING = 0;
+
+  // 视图日视图、周视图、月视图、季视图、年视图
+  var viewTypeList = [{
+    type: 'day',
+    label: '日视图',
+    value: 2880 // 一个格子宽度为30px, 一天24*60*60秒 / 30px = 2880秒/px
+  }, {
+    type: 'week',
+    label: '周视图',
+    value: 3600 // 一个格子宽度为168px, 一周24*60*60*7秒 / 168px = 36000秒/px
+  }, {
+    type: 'month',
+    label: '月视图',
+    value: 14400
+  }, {
+    type: 'quarter',
+    label: '季视图',
+    value: 86400
+  }, {
+    type: 'halfYear',
+    label: '年视图',
+    value: 115200
+  }];
+  var getViewTypeConfig = function getViewTypeConfig(viewType) {
+    return viewTypeList.find(function (item) {
+      return item.type === viewType;
+    });
+  };
+
+  // 创建DOM
+  var createElement = function createElement(tagName, className) {
+    var element = document.createElement(tagName);
+    if (className) {
+      element.className = className;
+    }
+    return element;
+  };
+
+  // 创建SVG元素
+  var createSvgElement = function createSvgElement(tagName) {
+    var props = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+    var element = document.createElementNS('http://www.w3.org/2000/svg', tagName);
+    for (var key in props) {
+      var value = props[key];
+      element.setAttribute(key, value);
+    }
+    return element;
+  };
+  var addPrefixCls = function addPrefixCls(str) {
+    var prefixCls = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 'my-gantt';
+    return "".concat(prefixCls, "-").concat(str);
+  };
+  var handleDrag = function handleDrag(element, _ref, step) {
+    var onDragBefore = _ref.onDragBefore,
+      onDraging = _ref.onDraging,
+      onDragEnd = _ref.onDragEnd;
+    var positionX = 0;
+    var accumulatedMove = 0; // 累计移动的距离
+
+    var handleMouseMove = function handleMouseMove(ev) {
+      ev.stopPropagation();
+      ev.preventDefault();
+      var moveX = ev.clientX;
+      var deltaX = moveX - positionX; // 当前鼠标相对初始位置的位移
+
+      if (step) {
+        accumulatedMove += deltaX; // 累积移动的距离
+        positionX = ev.clientX; // 更新初始位置为当前鼠标位置
+
+        // 判断是否超过步长，如果超过，更新宽度
+        if (Math.abs(accumulatedMove) >= step) {
+          var steps = Math.floor(accumulatedMove / step); // 计算完整步长的数量
+          onDraging === null || onDraging === void 0 || onDraging(steps);
+          accumulatedMove = 0; // 重置累计移动距离
+        }
+      } else {
+        onDraging === null || onDraging === void 0 || onDraging(deltaX);
+      }
+    };
+    var _handleMouseUp = function handleMouseUp(event) {
+      event.stopPropagation();
+      event.preventDefault();
+      onDragEnd === null || onDragEnd === void 0 || onDragEnd();
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', _handleMouseUp);
+    };
+    var handleMouseDown = function handleMouseDown(event) {
+      onDragBefore === null || onDragBefore === void 0 || onDragBefore(event);
+      event.stopPropagation();
+      event.preventDefault();
+      positionX = event.clientX;
+      accumulatedMove = 0; // 重置累计移动距离 
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', _handleMouseUp);
+    };
+    element.addEventListener('mousedown', handleMouseDown);
+  };
+
   var isBetween$1 = {exports: {}};
 
   (function (module, exports) {
@@ -693,7 +752,7 @@
     }, {
       key: "initDom",
       value: function initDom() {
-        var $header = createElement('header', addPrefixCls('time-axis'));
+        var $header = createElement('header', addPrefixCls('header'));
         var $tableHeader = this.createTableHeader();
         var $timeAxisHeader = this.createTimeAxis();
         $header.appendChild($tableHeader);
@@ -757,28 +816,30 @@
       value: function createTimeAxisHeader() {
         var _this = this;
         var $timeAxisHeader = createElement('div', addPrefixCls('time-axis-header'));
-        var positionX = 0;
-        var handleMouseMove = function handleMouseMove(event) {
-          event.preventDefault();
-          var moveX = event.clientX;
-          var x = moveX - positionX - _this.translateX;
-          _this.setTranslateX(-x);
-        };
-        var _handleMouseUp = function handleMouseUp() {
-          _this.isMoveing = false;
-          window.removeEventListener('mousemove', handleMouseMove);
-          window.removeEventListener('mouseup', _handleMouseUp);
-        };
 
         // 绑定拖动事件
-        $timeAxisHeader.onmousedown = function (event) {
-          event.stopPropagation();
-          event.preventDefault();
-          _this.isMoveing = true;
-          positionX = event.clientX;
-          window.addEventListener('mousemove', handleMouseMove);
-          window.addEventListener('mouseup', _handleMouseUp);
-        };
+        handleDrag($timeAxisHeader, {
+          onDragBefore: function onDragBefore() {
+            _this.isMoveing = true;
+          },
+          onDraging: function onDraging(deltaX) {
+            var x = deltaX - _this.translateX;
+            _this.setTranslateX(-x);
+          },
+          onDragEnd: function onDragEnd() {
+            _this.isMoveing = false;
+          }
+        });
+
+        // 通过事件代理，绑定点击事件
+        $timeAxisHeader.addEventListener('click', function (e) {
+          var $target = e.target;
+          if ($target.className === addPrefixCls('time-axis-major-label') || $target.className === addPrefixCls('time-axis-minor-label')) {
+            var _this$options$onTimel, _this$options;
+            var dataTime = $target.getAttribute('data-time');
+            (_this$options$onTimel = (_this$options = _this.options).onTimelineClick) === null || _this$options$onTimel === void 0 || _this$options$onTimel.call(_this$options, dataTime);
+          }
+        });
         return $timeAxisHeader;
       }
 
@@ -787,17 +848,18 @@
       key: "createTimeAxisMajor",
       value: function createTimeAxisMajor(wrapper) {
         var majorList = this.getMajorList();
+        // 使用 fragment 优化DOM批量创建
+        var fragment = document.createDocumentFragment();
         majorList.forEach(function (item) {
           var $major = createElement('div', addPrefixCls('time-axis-major'));
           var $majorLabel = createElement('div', addPrefixCls('time-axis-major-label'));
           $majorLabel.innerText = item.label;
+          $majorLabel.setAttribute('data-time', item.label);
           $major.appendChild($majorLabel);
-          // 设置宽度
-          $major.style.width = "".concat(item.width, "px");
-          // 设置left
-          $major.style.left = "".concat(item.left, "px");
-          wrapper.appendChild($major);
+          $major.style.cssText = "width: ".concat(item.width, "px; left: ").concat(item.left, "px");
+          fragment.appendChild($major);
         });
+        wrapper.appendChild(fragment);
       }
 
       // 创建次轴DOM
@@ -805,17 +867,15 @@
       key: "createTimeAxisMinor",
       value: function createTimeAxisMinor(wrapper) {
         var minorList = this.getMinorList();
-        // console.log('minorList', minorList);
-
+        var fragment = document.createDocumentFragment();
         minorList.forEach(function (item) {
           var $minor = createElement('div', addPrefixCls('time-axis-minor'));
           var $minorLabel = createElement('div', addPrefixCls('time-axis-minor-label'));
           $minorLabel.innerText = item.label;
+          $minorLabel.setAttribute('data-time', item.key);
           $minor.appendChild($minorLabel);
-          // 设置宽度
-          $minor.style.width = "".concat(item.width, "px");
-          // 设置left
-          $minor.style.left = "".concat(item.left, "px");
+          $minor.style.cssText = "width: ".concat(item.width, "px; left: ").concat(item.left, "px");
+
           // 标识周末
           if (item.isWeek) {
             $minor.setAttribute('isWeek', true);
@@ -825,8 +885,9 @@
           if (item.isToday) {
             $minor.setAttribute('curDay', true);
           }
-          wrapper.appendChild($minor);
+          fragment.appendChild($minor);
         });
+        wrapper.appendChild(fragment);
       }
 
       // 创建返回今日
@@ -844,7 +905,7 @@
     }, {
       key: "createChangeViewType",
       value: function createChangeViewType() {
-        var _this$options,
+        var _this$options2,
           _this2 = this;
         var $viewTypeSelect = createElement('select', addPrefixCls('view-type-switch'));
         viewTypeList.forEach(function (item) {
@@ -855,7 +916,7 @@
         });
 
         // 设置默认值
-        $viewTypeSelect.value = (_this$options = this.options) === null || _this$options === void 0 ? void 0 : _this$options.viewType;
+        $viewTypeSelect.value = (_this$options2 = this.options) === null || _this$options2 === void 0 ? void 0 : _this$options2.viewType;
         $viewTypeSelect.addEventListener('change', function (event) {
           var val = event.target.value;
           _this2.setViewType(val);
@@ -865,13 +926,16 @@
     }, {
       key: "setViewType",
       value: function setViewType(viewType) {
-        var _this$options$onViewT, _this$options2;
+        var _this$options$onViewT, _this$options3;
         this.options.viewType = viewType;
         this.sightConfig = getViewTypeConfig(viewType);
         var translateX = dayjs(this.getStartDate()).valueOf() / (this.sightConfig.value * 1000);
         // 执行 setTranslateX，会自动重新渲染
         this.setTranslateX(translateX);
-        (_this$options$onViewT = (_this$options2 = this.options).onViewTypeChange) === null || _this$options$onViewT === void 0 || _this$options$onViewT.call(_this$options2, viewType);
+        (_this$options$onViewT = (_this$options3 = this.options).onViewTypeChange) === null || _this$options$onViewT === void 0 || _this$options$onViewT.call(_this$options3, {
+          viewType: viewType,
+          pxUnitAmp: this.pxUnitAmp
+        });
       }
     }, {
       key: "setBackTodayDisplay",
@@ -901,17 +965,18 @@
     }, {
       key: "setTranslateX",
       value: function setTranslateX(translateX) {
-        var _this$options$onChang, _this$options3;
+        var _this$options$onChang, _this$options4;
         this.translateX = Math.max(translateX, 0);
         // 重新渲染时间轴数据
         this.renderTimeAxisChunk(this.$timeAxis);
         if (this.$backToday) {
           this.setBackTodayDisplay();
         }
-        (_this$options$onChang = (_this$options3 = this.options).onChange) === null || _this$options$onChang === void 0 || _this$options$onChang.call(_this$options3, {
+        (_this$options$onChang = (_this$options4 = this.options).onChange) === null || _this$options$onChang === void 0 || _this$options$onChang.call(_this$options4, {
           translateX: translateX,
           minorList: this.getMinorList(),
-          todayTranslateX: this.todayTranslateX
+          todayTranslateX: this.todayTranslateX,
+          pxUnitAmp: this.pxUnitAmp
         });
       }
 
@@ -1224,7 +1289,7 @@
             this.$backToday.style.opacity = 0;
           }
         } else {
-          this.$timeAxis.style.cursor = 'ew-resize';
+          this.$timeAxis.removeAttribute('style');
           if (this.$backToday) {
             this.$backToday.style.opacity = 1;
           }
@@ -1260,15 +1325,621 @@
     }]);
   }();
 
-  /* 
-    图表
-  */
+  /**
+   * Checks if `value` is the
+   * [language type](http://www.ecma-international.org/ecma-262/7.0/#sec-ecmascript-language-types)
+   * of `Object`. (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
+   *
+   * @static
+   * @memberOf _
+   * @since 0.1.0
+   * @category Lang
+   * @param {*} value The value to check.
+   * @returns {boolean} Returns `true` if `value` is an object, else `false`.
+   * @example
+   *
+   * _.isObject({});
+   * // => true
+   *
+   * _.isObject([1, 2, 3]);
+   * // => true
+   *
+   * _.isObject(_.noop);
+   * // => true
+   *
+   * _.isObject(null);
+   * // => false
+   */
+
+  function isObject$3(value) {
+    var type = typeof value;
+    return value != null && (type == 'object' || type == 'function');
+  }
+  var isObject_1 = isObject$3;
+
+  /** Detect free variable `global` from Node.js. */
+
+  var freeGlobal$1 = typeof commonjsGlobal == 'object' && commonjsGlobal && commonjsGlobal.Object === Object && commonjsGlobal;
+  var _freeGlobal = freeGlobal$1;
+
+  var freeGlobal = _freeGlobal;
+
+  /** Detect free variable `self`. */
+  var freeSelf = typeof self == 'object' && self && self.Object === Object && self;
+
+  /** Used as a reference to the global object. */
+  var root$2 = freeGlobal || freeSelf || Function('return this')();
+  var _root = root$2;
+
+  var root$1 = _root;
+
+  /**
+   * Gets the timestamp of the number of milliseconds that have elapsed since
+   * the Unix epoch (1 January 1970 00:00:00 UTC).
+   *
+   * @static
+   * @memberOf _
+   * @since 2.4.0
+   * @category Date
+   * @returns {number} Returns the timestamp.
+   * @example
+   *
+   * _.defer(function(stamp) {
+   *   console.log(_.now() - stamp);
+   * }, _.now());
+   * // => Logs the number of milliseconds it took for the deferred invocation.
+   */
+  var now$1 = function () {
+    return root$1.Date.now();
+  };
+  var now_1 = now$1;
+
+  /** Used to match a single whitespace character. */
+
+  var reWhitespace = /\s/;
+
+  /**
+   * Used by `_.trim` and `_.trimEnd` to get the index of the last non-whitespace
+   * character of `string`.
+   *
+   * @private
+   * @param {string} string The string to inspect.
+   * @returns {number} Returns the index of the last non-whitespace character.
+   */
+  function trimmedEndIndex$1(string) {
+    var index = string.length;
+    while (index-- && reWhitespace.test(string.charAt(index))) {}
+    return index;
+  }
+  var _trimmedEndIndex = trimmedEndIndex$1;
+
+  var trimmedEndIndex = _trimmedEndIndex;
+
+  /** Used to match leading whitespace. */
+  var reTrimStart = /^\s+/;
+
+  /**
+   * The base implementation of `_.trim`.
+   *
+   * @private
+   * @param {string} string The string to trim.
+   * @returns {string} Returns the trimmed string.
+   */
+  function baseTrim$1(string) {
+    return string ? string.slice(0, trimmedEndIndex(string) + 1).replace(reTrimStart, '') : string;
+  }
+  var _baseTrim = baseTrim$1;
+
+  var root = _root;
+
+  /** Built-in value references. */
+  var Symbol$3 = root.Symbol;
+  var _Symbol = Symbol$3;
+
+  var Symbol$2 = _Symbol;
+
+  /** Used for built-in method references. */
+  var objectProto$1 = Object.prototype;
+
+  /** Used to check objects for own properties. */
+  var hasOwnProperty = objectProto$1.hasOwnProperty;
+
+  /**
+   * Used to resolve the
+   * [`toStringTag`](http://ecma-international.org/ecma-262/7.0/#sec-object.prototype.tostring)
+   * of values.
+   */
+  var nativeObjectToString$1 = objectProto$1.toString;
+
+  /** Built-in value references. */
+  var symToStringTag$1 = Symbol$2 ? Symbol$2.toStringTag : undefined;
+
+  /**
+   * A specialized version of `baseGetTag` which ignores `Symbol.toStringTag` values.
+   *
+   * @private
+   * @param {*} value The value to query.
+   * @returns {string} Returns the raw `toStringTag`.
+   */
+  function getRawTag$1(value) {
+    var isOwn = hasOwnProperty.call(value, symToStringTag$1),
+      tag = value[symToStringTag$1];
+    try {
+      value[symToStringTag$1] = undefined;
+      var unmasked = true;
+    } catch (e) {}
+    var result = nativeObjectToString$1.call(value);
+    if (unmasked) {
+      if (isOwn) {
+        value[symToStringTag$1] = tag;
+      } else {
+        delete value[symToStringTag$1];
+      }
+    }
+    return result;
+  }
+  var _getRawTag = getRawTag$1;
+
+  /** Used for built-in method references. */
+
+  var objectProto = Object.prototype;
+
+  /**
+   * Used to resolve the
+   * [`toStringTag`](http://ecma-international.org/ecma-262/7.0/#sec-object.prototype.tostring)
+   * of values.
+   */
+  var nativeObjectToString = objectProto.toString;
+
+  /**
+   * Converts `value` to a string using `Object.prototype.toString`.
+   *
+   * @private
+   * @param {*} value The value to convert.
+   * @returns {string} Returns the converted string.
+   */
+  function objectToString$1(value) {
+    return nativeObjectToString.call(value);
+  }
+  var _objectToString = objectToString$1;
+
+  var Symbol$1 = _Symbol,
+    getRawTag = _getRawTag,
+    objectToString = _objectToString;
+
+  /** `Object#toString` result references. */
+  var nullTag = '[object Null]',
+    undefinedTag = '[object Undefined]';
+
+  /** Built-in value references. */
+  var symToStringTag = Symbol$1 ? Symbol$1.toStringTag : undefined;
+
+  /**
+   * The base implementation of `getTag` without fallbacks for buggy environments.
+   *
+   * @private
+   * @param {*} value The value to query.
+   * @returns {string} Returns the `toStringTag`.
+   */
+  function baseGetTag$1(value) {
+    if (value == null) {
+      return value === undefined ? undefinedTag : nullTag;
+    }
+    return symToStringTag && symToStringTag in Object(value) ? getRawTag(value) : objectToString(value);
+  }
+  var _baseGetTag = baseGetTag$1;
+
+  /**
+   * Checks if `value` is object-like. A value is object-like if it's not `null`
+   * and has a `typeof` result of "object".
+   *
+   * @static
+   * @memberOf _
+   * @since 4.0.0
+   * @category Lang
+   * @param {*} value The value to check.
+   * @returns {boolean} Returns `true` if `value` is object-like, else `false`.
+   * @example
+   *
+   * _.isObjectLike({});
+   * // => true
+   *
+   * _.isObjectLike([1, 2, 3]);
+   * // => true
+   *
+   * _.isObjectLike(_.noop);
+   * // => false
+   *
+   * _.isObjectLike(null);
+   * // => false
+   */
+
+  function isObjectLike$1(value) {
+    return value != null && typeof value == 'object';
+  }
+  var isObjectLike_1 = isObjectLike$1;
+
+  var baseGetTag = _baseGetTag,
+    isObjectLike = isObjectLike_1;
+
+  /** `Object#toString` result references. */
+  var symbolTag = '[object Symbol]';
+
+  /**
+   * Checks if `value` is classified as a `Symbol` primitive or object.
+   *
+   * @static
+   * @memberOf _
+   * @since 4.0.0
+   * @category Lang
+   * @param {*} value The value to check.
+   * @returns {boolean} Returns `true` if `value` is a symbol, else `false`.
+   * @example
+   *
+   * _.isSymbol(Symbol.iterator);
+   * // => true
+   *
+   * _.isSymbol('abc');
+   * // => false
+   */
+  function isSymbol$1(value) {
+    return typeof value == 'symbol' || isObjectLike(value) && baseGetTag(value) == symbolTag;
+  }
+  var isSymbol_1 = isSymbol$1;
+
+  var baseTrim = _baseTrim,
+    isObject$2 = isObject_1,
+    isSymbol = isSymbol_1;
+
+  /** Used as references for various `Number` constants. */
+  var NAN = 0 / 0;
+
+  /** Used to detect bad signed hexadecimal string values. */
+  var reIsBadHex = /^[-+]0x[0-9a-f]+$/i;
+
+  /** Used to detect binary string values. */
+  var reIsBinary = /^0b[01]+$/i;
+
+  /** Used to detect octal string values. */
+  var reIsOctal = /^0o[0-7]+$/i;
+
+  /** Built-in method references without a dependency on `root`. */
+  var freeParseInt = parseInt;
+
+  /**
+   * Converts `value` to a number.
+   *
+   * @static
+   * @memberOf _
+   * @since 4.0.0
+   * @category Lang
+   * @param {*} value The value to process.
+   * @returns {number} Returns the number.
+   * @example
+   *
+   * _.toNumber(3.2);
+   * // => 3.2
+   *
+   * _.toNumber(Number.MIN_VALUE);
+   * // => 5e-324
+   *
+   * _.toNumber(Infinity);
+   * // => Infinity
+   *
+   * _.toNumber('3.2');
+   * // => 3.2
+   */
+  function toNumber$1(value) {
+    if (typeof value == 'number') {
+      return value;
+    }
+    if (isSymbol(value)) {
+      return NAN;
+    }
+    if (isObject$2(value)) {
+      var other = typeof value.valueOf == 'function' ? value.valueOf() : value;
+      value = isObject$2(other) ? other + '' : other;
+    }
+    if (typeof value != 'string') {
+      return value === 0 ? value : +value;
+    }
+    value = baseTrim(value);
+    var isBinary = reIsBinary.test(value);
+    return isBinary || reIsOctal.test(value) ? freeParseInt(value.slice(2), isBinary ? 2 : 8) : reIsBadHex.test(value) ? NAN : +value;
+  }
+  var toNumber_1 = toNumber$1;
+
+  var isObject$1 = isObject_1,
+    now = now_1,
+    toNumber = toNumber_1;
+
+  /** Error message constants. */
+  var FUNC_ERROR_TEXT$1 = 'Expected a function';
+
+  /* Built-in method references for those with the same name as other `lodash` methods. */
+  var nativeMax = Math.max,
+    nativeMin = Math.min;
+
+  /**
+   * Creates a debounced function that delays invoking `func` until after `wait`
+   * milliseconds have elapsed since the last time the debounced function was
+   * invoked. The debounced function comes with a `cancel` method to cancel
+   * delayed `func` invocations and a `flush` method to immediately invoke them.
+   * Provide `options` to indicate whether `func` should be invoked on the
+   * leading and/or trailing edge of the `wait` timeout. The `func` is invoked
+   * with the last arguments provided to the debounced function. Subsequent
+   * calls to the debounced function return the result of the last `func`
+   * invocation.
+   *
+   * **Note:** If `leading` and `trailing` options are `true`, `func` is
+   * invoked on the trailing edge of the timeout only if the debounced function
+   * is invoked more than once during the `wait` timeout.
+   *
+   * If `wait` is `0` and `leading` is `false`, `func` invocation is deferred
+   * until to the next tick, similar to `setTimeout` with a timeout of `0`.
+   *
+   * See [David Corbacho's article](https://css-tricks.com/debouncing-throttling-explained-examples/)
+   * for details over the differences between `_.debounce` and `_.throttle`.
+   *
+   * @static
+   * @memberOf _
+   * @since 0.1.0
+   * @category Function
+   * @param {Function} func The function to debounce.
+   * @param {number} [wait=0] The number of milliseconds to delay.
+   * @param {Object} [options={}] The options object.
+   * @param {boolean} [options.leading=false]
+   *  Specify invoking on the leading edge of the timeout.
+   * @param {number} [options.maxWait]
+   *  The maximum time `func` is allowed to be delayed before it's invoked.
+   * @param {boolean} [options.trailing=true]
+   *  Specify invoking on the trailing edge of the timeout.
+   * @returns {Function} Returns the new debounced function.
+   * @example
+   *
+   * // Avoid costly calculations while the window size is in flux.
+   * jQuery(window).on('resize', _.debounce(calculateLayout, 150));
+   *
+   * // Invoke `sendMail` when clicked, debouncing subsequent calls.
+   * jQuery(element).on('click', _.debounce(sendMail, 300, {
+   *   'leading': true,
+   *   'trailing': false
+   * }));
+   *
+   * // Ensure `batchLog` is invoked once after 1 second of debounced calls.
+   * var debounced = _.debounce(batchLog, 250, { 'maxWait': 1000 });
+   * var source = new EventSource('/stream');
+   * jQuery(source).on('message', debounced);
+   *
+   * // Cancel the trailing debounced invocation.
+   * jQuery(window).on('popstate', debounced.cancel);
+   */
+  function debounce$1(func, wait, options) {
+    var lastArgs,
+      lastThis,
+      maxWait,
+      result,
+      timerId,
+      lastCallTime,
+      lastInvokeTime = 0,
+      leading = false,
+      maxing = false,
+      trailing = true;
+    if (typeof func != 'function') {
+      throw new TypeError(FUNC_ERROR_TEXT$1);
+    }
+    wait = toNumber(wait) || 0;
+    if (isObject$1(options)) {
+      leading = !!options.leading;
+      maxing = 'maxWait' in options;
+      maxWait = maxing ? nativeMax(toNumber(options.maxWait) || 0, wait) : maxWait;
+      trailing = 'trailing' in options ? !!options.trailing : trailing;
+    }
+    function invokeFunc(time) {
+      var args = lastArgs,
+        thisArg = lastThis;
+      lastArgs = lastThis = undefined;
+      lastInvokeTime = time;
+      result = func.apply(thisArg, args);
+      return result;
+    }
+    function leadingEdge(time) {
+      // Reset any `maxWait` timer.
+      lastInvokeTime = time;
+      // Start the timer for the trailing edge.
+      timerId = setTimeout(timerExpired, wait);
+      // Invoke the leading edge.
+      return leading ? invokeFunc(time) : result;
+    }
+    function remainingWait(time) {
+      var timeSinceLastCall = time - lastCallTime,
+        timeSinceLastInvoke = time - lastInvokeTime,
+        timeWaiting = wait - timeSinceLastCall;
+      return maxing ? nativeMin(timeWaiting, maxWait - timeSinceLastInvoke) : timeWaiting;
+    }
+    function shouldInvoke(time) {
+      var timeSinceLastCall = time - lastCallTime,
+        timeSinceLastInvoke = time - lastInvokeTime;
+
+      // Either this is the first call, activity has stopped and we're at the
+      // trailing edge, the system time has gone backwards and we're treating
+      // it as the trailing edge, or we've hit the `maxWait` limit.
+      return lastCallTime === undefined || timeSinceLastCall >= wait || timeSinceLastCall < 0 || maxing && timeSinceLastInvoke >= maxWait;
+    }
+    function timerExpired() {
+      var time = now();
+      if (shouldInvoke(time)) {
+        return trailingEdge(time);
+      }
+      // Restart the timer.
+      timerId = setTimeout(timerExpired, remainingWait(time));
+    }
+    function trailingEdge(time) {
+      timerId = undefined;
+
+      // Only invoke if we have `lastArgs` which means `func` has been
+      // debounced at least once.
+      if (trailing && lastArgs) {
+        return invokeFunc(time);
+      }
+      lastArgs = lastThis = undefined;
+      return result;
+    }
+    function cancel() {
+      if (timerId !== undefined) {
+        clearTimeout(timerId);
+      }
+      lastInvokeTime = 0;
+      lastArgs = lastCallTime = lastThis = timerId = undefined;
+    }
+    function flush() {
+      return timerId === undefined ? result : trailingEdge(now());
+    }
+    function debounced() {
+      var time = now(),
+        isInvoking = shouldInvoke(time);
+      lastArgs = arguments;
+      lastThis = this;
+      lastCallTime = time;
+      if (isInvoking) {
+        if (timerId === undefined) {
+          return leadingEdge(lastCallTime);
+        }
+        if (maxing) {
+          // Handle invocations in a tight loop.
+          clearTimeout(timerId);
+          timerId = setTimeout(timerExpired, wait);
+          return invokeFunc(lastCallTime);
+        }
+      }
+      if (timerId === undefined) {
+        timerId = setTimeout(timerExpired, wait);
+      }
+      return result;
+    }
+    debounced.cancel = cancel;
+    debounced.flush = flush;
+    return debounced;
+  }
+  var debounce_1 = debounce$1;
+
+  var debounce = debounce_1,
+    isObject = isObject_1;
+
+  /** Error message constants. */
+  var FUNC_ERROR_TEXT = 'Expected a function';
+
+  /**
+   * Creates a throttled function that only invokes `func` at most once per
+   * every `wait` milliseconds. The throttled function comes with a `cancel`
+   * method to cancel delayed `func` invocations and a `flush` method to
+   * immediately invoke them. Provide `options` to indicate whether `func`
+   * should be invoked on the leading and/or trailing edge of the `wait`
+   * timeout. The `func` is invoked with the last arguments provided to the
+   * throttled function. Subsequent calls to the throttled function return the
+   * result of the last `func` invocation.
+   *
+   * **Note:** If `leading` and `trailing` options are `true`, `func` is
+   * invoked on the trailing edge of the timeout only if the throttled function
+   * is invoked more than once during the `wait` timeout.
+   *
+   * If `wait` is `0` and `leading` is `false`, `func` invocation is deferred
+   * until to the next tick, similar to `setTimeout` with a timeout of `0`.
+   *
+   * See [David Corbacho's article](https://css-tricks.com/debouncing-throttling-explained-examples/)
+   * for details over the differences between `_.throttle` and `_.debounce`.
+   *
+   * @static
+   * @memberOf _
+   * @since 0.1.0
+   * @category Function
+   * @param {Function} func The function to throttle.
+   * @param {number} [wait=0] The number of milliseconds to throttle invocations to.
+   * @param {Object} [options={}] The options object.
+   * @param {boolean} [options.leading=true]
+   *  Specify invoking on the leading edge of the timeout.
+   * @param {boolean} [options.trailing=true]
+   *  Specify invoking on the trailing edge of the timeout.
+   * @returns {Function} Returns the new throttled function.
+   * @example
+   *
+   * // Avoid excessively updating the position while scrolling.
+   * jQuery(window).on('scroll', _.throttle(updatePosition, 100));
+   *
+   * // Invoke `renewToken` when the click event is fired, but not more than once every 5 minutes.
+   * var throttled = _.throttle(renewToken, 300000, { 'trailing': false });
+   * jQuery(element).on('click', throttled);
+   *
+   * // Cancel the trailing throttled invocation.
+   * jQuery(window).on('popstate', throttled.cancel);
+   */
+  function throttle(func, wait, options) {
+    var leading = true,
+      trailing = true;
+    if (typeof func != 'function') {
+      throw new TypeError(FUNC_ERROR_TEXT);
+    }
+    if (isObject(options)) {
+      leading = 'leading' in options ? !!options.leading : leading;
+      trailing = 'trailing' in options ? !!options.trailing : trailing;
+    }
+    return debounce(func, wait, {
+      'leading': leading,
+      'maxWait': wait,
+      'trailing': trailing
+    });
+  }
+  var throttle_1 = throttle;
+
+  var throttle$1 = /*@__PURE__*/getDefaultExportFromCjs(throttle_1);
+
   var Chart = /*#__PURE__*/function () {
     function Chart(wrapper) {
+      var _this = this;
       var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
       _classCallCheck(this, Chart);
+      // 判断 taskItem 滚动时是否在视图内
+      _defineProperty(this, "handleTaskItemInView", throttle$1(function () {
+        var translateX = _this.options.translateX;
+        var taskItemList = document.querySelectorAll(".".concat(addPrefixCls('task-item')));
+        taskItemList.forEach(function (item) {
+          // 获取每一个 taskItem 的 translateX
+          var itemTranslateX = parseFloat(item.getAttribute('style').match(/translateX\(([-\d.]+)px/)[1]);
+          var itemWidth = parseInt(item.offsetWidth);
+          // 获取父元素的上一个兄弟元素
+          var $taskRowStyleBar = item.parentElement.previousElementSibling;
+          var $leftArrowBtn = $taskRowStyleBar.querySelector(".".concat(addPrefixCls('task-item-go-back-left-btn')));
+          var $rightArrowBtn = $taskRowStyleBar.querySelector(".".concat(addPrefixCls('task-item-go-back-right-btn')));
+
+          // 在左侧隐藏
+          if (itemTranslateX + itemWidth <= translateX) {
+            $leftArrowBtn.setAttribute('data-left-arrow', true);
+            $leftArrowBtn.setAttribute('data-translateX', itemTranslateX);
+          } else {
+            $leftArrowBtn.removeAttribute('data-left-arrow');
+          }
+
+          // 在右侧隐藏
+          if (itemTranslateX >= translateX + _this.bodyClientWidth) {
+            $rightArrowBtn.setAttribute('data-right-arrow', true);
+            $rightArrowBtn.setAttribute('data-translateX', itemTranslateX);
+          } else {
+            $rightArrowBtn.removeAttribute('data-right-arrow');
+          }
+        });
+      }, 300));
+      // 设置垂直滚动高度，节流处理
+      _defineProperty(this, "setScrollY", throttle$1(function (scrollTop) {
+        _this.scrollTop = scrollTop;
+      }, 100));
       this.$wrapper = this.verify_wrapper(wrapper);
       this.options = options;
+      // 1px对应的毫秒数
+      this.pxUnitAmp = dayjs().startOf('day').valueOf() / this.options.todayTranslateX;
+      // 记录垂直滚动距离
+      this.scrollTop = 0;
+      // 垂直虚拟滚动开始索引
+      this.virtualStartIndex = 0;
       this.initDom();
     }
     return _createClass(Chart, [{
@@ -1286,21 +1957,76 @@
       key: "initDom",
       value: function initDom() {
         var $chartWrapper = createElement('main', addPrefixCls('chart-wrapper'));
+        $chartWrapper.style.height = "".concat(this.bodyClientHeight, "px");
+        // 给 $chartWrapper 绑定垂直滚动事件
+        $chartWrapper.addEventListener('scroll', this.handleScroll.bind(this));
         this.createGanttChart($chartWrapper);
         this.$wrapper.appendChild($chartWrapper);
+        this.handleTaskItemInView();
       }
+
+      // 绑定水平滚动事件，通过事件代理处理各个事件
     }, {
       key: "createGanttChart",
       value: function createGanttChart(wrapper) {
-        var _this$options, _this$options2;
+        var _this2 = this;
         var $ganttChart = createElement('div', addPrefixCls('chart'));
-        $ganttChart.style.width = "".concat((_this$options = this.options) === null || _this$options === void 0 ? void 0 : _this$options.width, "px");
-        $ganttChart.style.height = "".concat((_this$options2 = this.options) === null || _this$options2 === void 0 ? void 0 : _this$options2.height, "px");
+        $ganttChart.style.width = "".concat(this.bodyClientWidth, "px");
+        $ganttChart.style.height = "".concat(this.bodyScrollHeight, "px");
+        this.$ganttChart = $ganttChart;
         // 绑定鼠标滚轮事件
         $ganttChart.addEventListener('wheel', this.handleWheel.bind(this));
 
+        // 绑定鼠标拖动事件
+        handleDrag($ganttChart, {
+          onDragBefore: function onDragBefore(event) {
+            var targetClassName = event.target.className;
+            if (targetClassName !== addPrefixCls('task-row-style-bar')) {
+              return;
+            }
+            $ganttChart.style.cursor = 'col-resize';
+          },
+          onDraging: function onDraging(x) {
+            var _this2$options$onWhee, _this2$options;
+            (_this2$options$onWhee = (_this2$options = _this2.options).onWheel) === null || _this2$options$onWhee === void 0 || _this2$options$onWhee.call(_this2$options, -x);
+          },
+          onDragEnd: function onDragEnd() {
+            $ganttChart.style.cursor = 'default';
+          }
+        });
+
+        // 通过事件代理，绑定点击事件
+        $ganttChart.addEventListener('click', function (event) {
+          var target = event.target;
+          // console.log(target);
+
+          if (target.className === addPrefixCls('task-item-content') || target.className === addPrefixCls('task-item-handle-wrapper')) {
+            var _this2$options$onTask, _this2$options2;
+            var taskItem = target.parentNode;
+            var taskItemId = taskItem.getAttribute('data-task-id') * 1;
+            // 根据 taskId 获取task数据
+            var taskData = _this2.getTaskDataById(taskItemId);
+            (_this2$options$onTask = (_this2$options2 = _this2.options).onTaskBarClick) === null || _this2$options$onTask === void 0 || _this2$options$onTask.call(_this2$options2, taskData);
+          }
+          if (target.className === addPrefixCls('task-item-go-back-left-btn') || target.className === addPrefixCls('task-item-go-back-right-btn')) {
+            var _this2$options$onArro, _this2$options3;
+            // 添加过渡效果
+            _this2.$taskBarRenderChunk.style.transition = 'transform 0.4s';
+            var translateX = target.getAttribute('data-translatex');
+            (_this2$options$onArro = (_this2$options3 = _this2.options).onArrowBtnClick) === null || _this2$options$onArro === void 0 || _this2$options$onArro.call(_this2$options3, {
+              translateX: translateX - _this2.bodyClientWidth / 2
+            });
+            // 移除过渡效果
+            setTimeout(function () {
+              _this2.$taskBarRenderChunk.style.transition = 'none';
+            }, 500);
+          }
+        });
+
         // 创建SVG背景
         this.createSvgBg($ganttChart);
+        // 创建横条纹管道
+        this.createTaskBarRenderChunk($ganttChart);
         wrapper.appendChild($ganttChart);
       }
 
@@ -1314,8 +2040,8 @@
         }
         // 水平滚动，需要修改 TranslateX，重新渲染
         if (Math.abs(event.deltaX) > 0) {
-          var _this$options$onWheel, _this$options3;
-          (_this$options$onWheel = (_this$options3 = this.options).onWheel) === null || _this$options$onWheel === void 0 || _this$options$onWheel.call(_this$options3, event.deltaX);
+          var _this$options$onWheel, _this$options;
+          (_this$options$onWheel = (_this$options = this.options).onWheel) === null || _this$options$onWheel === void 0 || _this$options$onWheel.call(_this$options, event.deltaX);
         }
       }
 
@@ -1324,34 +2050,31 @@
       key: "createSvgBg",
       value: function createSvgBg(wrapper) {
         // 创建一个SVG元素
-        var _this$options4 = this.options,
-          viewWidth = _this$options4.width,
-          viewHeight = _this$options4.height,
-          translateX = _this$options4.translateX,
-          minorList = _this$options4.minorList;
+        var _this$options2 = this.options,
+          translateX = _this$options2.translateX,
+          minorList = _this$options2.minorList;
         var $svg = createSvgElement('svg', {
-          width: viewWidth,
-          height: viewHeight,
-          viewBox: "".concat(translateX, " 0 ").concat(viewWidth, " ").concat(viewHeight),
+          width: this.bodyClientWidth,
+          height: this.bodyScrollHeight,
+          viewBox: "".concat(translateX, " 0 ").concat(this.bodyClientWidth, " ").concat(this.bodyScrollHeight),
           "class": addPrefixCls('chart-svg-renderer')
         });
         this.$svg = $svg;
-        this.createVerticalStripe(minorList, this.options.todayTranslateX);
+        this.createVerticalStripe(minorList);
         wrapper.appendChild($svg);
       }
 
       // 创建SVG竖条纹
     }, {
       key: "createVerticalStripe",
-      value: function createVerticalStripe(minorList, todayTranslateX) {
-        var _this = this;
+      value: function createVerticalStripe(minorList) {
+        var _this3 = this;
         // 先清空再创建
         this.$svg.innerHTML = '';
-        var _this$options5 = this.options,
-          viewHeight = _this$options5.height,
-          lineColor = _this$options5.lineColor,
-          weekBarBg = _this$options5.weekBarBg,
-          curDayLineColor = _this$options5.curDayLineColor;
+        var _this$options3 = this.options,
+          lineColor = _this$options3.lineColor,
+          weekBarBg = _this$options3.weekBarBg;
+        var fragment = document.createDocumentFragment();
         minorList === null || minorList === void 0 || minorList.forEach(function (item) {
           // 创建group元素
           var $g = createSvgElement('g', {
@@ -1360,7 +2083,7 @@
 
           // 创建path
           var $path = createSvgElement('path', {
-            d: "M".concat(item.left, ",0 L").concat(item.left, ",").concat(viewHeight)
+            d: "M".concat(item.left, ",0 L").concat(item.left, ",").concat(_this3.bodyScrollHeight)
           });
           $g.appendChild($path);
           // 如果是周末创建rect
@@ -1369,44 +2092,344 @@
               x: item.left,
               y: 0,
               width: item.width,
-              height: viewHeight,
+              height: _this3.bodyScrollHeight,
               fill: weekBarBg,
               // 周末条的背景颜色
               strokeWidth: 0
             });
             $g.appendChild($rect);
           }
-
-          // 如果是当天，绘制 “今日”
-          if (todayTranslateX) {
-            var left = todayTranslateX + 15;
-            var $line = createSvgElement('path', {
-              d: "M".concat(left, ",0 L").concat(left, ",").concat(viewHeight),
-              stroke: curDayLineColor
-            });
-            $g.appendChild($line);
-          }
-          _this.$svg.appendChild($g);
+          fragment.appendChild($g);
         });
+        this.$svg.appendChild(fragment);
       }
 
-      // 重新渲染Svg背景
+      // 创建任务条区域
+    }, {
+      key: "createTaskBarRenderChunk",
+      value: function createTaskBarRenderChunk(wrapper) {
+        var $taskBarRenderChunk = createElement('div', addPrefixCls('task-bar-render-chunk'));
+        $taskBarRenderChunk.style.cssText = "height: ".concat(this.bodyScrollHeight, "px; transform: translateX(-").concat(this.options.translateX, "px");
+        this.$taskBarRenderChunk = $taskBarRenderChunk;
+        // 渲染 taskBar
+        this.renderTaskBar();
+        wrapper.appendChild($taskBarRenderChunk);
+      }
+    }, {
+      key: "renderTaskBar",
+      value: function renderTaskBar() {
+        var _this$getVisibleRows = this.getVisibleRows,
+          count = _this$getVisibleRows.count,
+          start = _this$getVisibleRows.start;
+        this.$taskBarRenderChunk.innerHTML = '';
+        var end = start + count;
+        if (end >= this.getBarList.length) {
+          end = this.getBarList.length;
+        }
+        var fragment = document.createDocumentFragment();
+        for (var i = start; i < end; i++) {
+          var item = this.getBarList[i];
+          var $taskRow = this.createTaskRow();
+          $taskRow.style.top = "".concat(i * this.options.rowHeight, "px");
+          var $taskRowStyleBar = this.createTaskRowStyleBar();
+          var $taskItemWrapper = this.renderTaskItem(item);
+          $taskRow.appendChild($taskRowStyleBar);
+          $taskRow.appendChild($taskItemWrapper);
+          fragment.appendChild($taskRow);
+        }
+        this.$taskBarRenderChunk.appendChild(fragment);
+        // 创建今日线
+        this.createTodayLine();
+      }
+    }, {
+      key: "createTaskRow",
+      value: function createTaskRow() {
+        var $taskRow = createElement('div', addPrefixCls('task-row'));
+        $taskRow.style.width = "".concat(this.bodyClientWidth, "px");
+        return $taskRow;
+      }
+
+      // 负责渲染 taskRow 的样式
+    }, {
+      key: "createTaskRowStyleBar",
+      value: function createTaskRowStyleBar() {
+        var $taskRowStyleBar = createElement('div', addPrefixCls('task-row-style-bar'));
+        $taskRowStyleBar.style.transform = "translateX(".concat(this.options.translateX, "px)");
+        var $taskitemGoBackLeftBtn = this.taskitemGoBackBtnOnLeft();
+        var $taskitemGoBackRightBtn = this.taskitemGoBackBtnOnRight();
+        $taskRowStyleBar.appendChild($taskitemGoBackLeftBtn);
+        $taskRowStyleBar.appendChild($taskitemGoBackRightBtn);
+        return $taskRowStyleBar;
+      }
+    }, {
+      key: "taskitemGoBackBtnOnLeft",
+      value: function taskitemGoBackBtnOnLeft() {
+        var $btn = createElement('div', addPrefixCls('task-item-go-back-left-btn'));
+        $btn.innerHTML = '«';
+        return $btn;
+      }
+    }, {
+      key: "taskitemGoBackBtnOnRight",
+      value: function taskitemGoBackBtnOnRight() {
+        var $btn = createElement('div', addPrefixCls('task-item-go-back-right-btn'));
+        $btn.innerHTML = '»';
+        return $btn;
+      }
+
+      // 渲染每一个任务条
+    }, {
+      key: "renderTaskItem",
+      value: function renderTaskItem(data) {
+        var _this4 = this;
+        var $taskItemWrapper = createElement('div', addPrefixCls('task-item-wrapper'));
+        $taskItemWrapper.style.height = "".concat(this.options.rowHeight - 1, "px");
+
+        // 判断日期是否合法
+        var valid = dayjs(data.startDate).isValid() && dayjs(data.endDate).isValid();
+        if (!valid) {
+          throw new Error("startDate or endDate is invalid");
+        }
+        var startAmp = dayjs(data.startDate || 0).startOf('day').valueOf();
+        var endAmp = dayjs(data.endDate || 0).endOf('day').valueOf();
+        // 最小宽度
+        var minStamp = 11 * this.pxUnitAmp;
+        // 开始结束日期相同默认一天
+        if (Math.abs(endAmp - startAmp) < minStamp) {
+          startAmp = dayjs(data.startDate || 0).startOf('day').valueOf();
+          endAmp = dayjs(data.endDate || 0).endOf('day').add(minStamp, 'millisecond').valueOf();
+        }
+        // 计算宽度
+        var width = (endAmp - startAmp) / this.pxUnitAmp;
+        // 计算偏移
+        var translateX = startAmp / this.pxUnitAmp;
+        var $taskItem = createElement('div', addPrefixCls('task-item'));
+        $taskItem.setAttribute('data-task-id', data.id);
+        $taskItem.style.cssText = "width: ".concat(width, "px; transform: translateX(").concat(translateX, "px);");
+
+        // $taskItem 处理拖拽移动
+        handleDrag($taskItem, {
+          onDraging: function onDraging(steps) {
+            _this4.$ganttChart.style.pointerEvents = 'none'; // 禁用点击事件，防止拖拽移动之后，触发子元素的点击事件
+            var taskItemTranslateX = parseFloat($taskItem.getAttribute('style').match(/translateX\(([-\d.]+)px/)[1]);
+            var newTranslateX = taskItemTranslateX + steps * _this4.step;
+            $taskItem.style.transform = "translateX(".concat(newTranslateX, "px)");
+          },
+          onDragEnd: function onDragEnd() {
+            _this4.$ganttChart.style.pointerEvents = ''; // 恢复点击事件
+          }
+        }, this.step);
+
+        // 内容部分
+        var $taskItemContent = createElement('div', addPrefixCls('task-item-content'));
+        $taskItemContent.innerHTML = data.title;
+        $taskItem.appendChild($taskItemContent);
+        var $taskItemHandleWrapper = createElement('div', addPrefixCls('task-item-handle-wrapper'));
+        // 左侧把手
+        var $resizeHolderLeft = this.taskItemResizeHolderLeft();
+        // 右侧把手
+        var $resizeHolderRight = this.taskItemResizeHolderRight();
+        $taskItemHandleWrapper.appendChild($resizeHolderLeft);
+        $taskItemHandleWrapper.appendChild($resizeHolderRight);
+        $taskItem.appendChild($taskItemHandleWrapper);
+        $taskItemWrapper.appendChild($taskItem);
+        return $taskItemWrapper;
+      }
+    }, {
+      key: "taskItemResizeHolderLeft",
+      value: function taskItemResizeHolderLeft() {
+        var _this5 = this;
+        var $resizeHolder = createElement('div', addPrefixCls('task-itme-resize-holder-left'));
+        $resizeHolder.innerHTML = "‖";
+        // 左边
+        handleDrag($resizeHolder, {
+          onDraging: function onDraging(steps) {
+            var $holderWrap = $resizeHolder.parentElement;
+            var $taskItem = $resizeHolder.parentElement.parentElement;
+            var $taskItemWidth = $taskItem.offsetWidth;
+            var taskItemTranslateX = parseFloat($taskItem.getAttribute('style').match(/translateX\(([-\d.]+)px/)[1]);
+            _this5.$ganttChart.style.pointerEvents = 'none'; // 禁用点击事件，防止拖拽移动之后，触发子元素的点击事件
+
+            $holderWrap.style.display = 'block';
+
+            // 修改宽度
+            var newWidth = $taskItemWidth - steps * _this5.step;
+            // 设置最小宽度以避免元素缩得太小
+            newWidth = Math.max(newWidth, _this5.step);
+
+            // 修改偏移
+            var newTranslateX = taskItemTranslateX + steps * _this5.step;
+            var endTranslateX = taskItemTranslateX + $taskItemWidth;
+            if (newTranslateX >= endTranslateX) {
+              newTranslateX = endTranslateX - _this5.step;
+            }
+            $taskItem.style.cssText = "width: ".concat(newWidth, "px; transform: translateX(").concat(newTranslateX, "px)");
+          },
+          onDragEnd: function onDragEnd() {
+            var $holderWrap = $resizeHolder.parentElement;
+            $holderWrap.removeAttribute('style');
+            _this5.$ganttChart.style.pointerEvents = ''; // 恢复点击事件
+          }
+        }, this.step);
+        return $resizeHolder;
+      }
+    }, {
+      key: "taskItemResizeHolderRight",
+      value: function taskItemResizeHolderRight() {
+        var _this6 = this;
+        var $resizeHolder = createElement('div', addPrefixCls('task-itme-resize-holder-right'));
+        $resizeHolder.innerHTML = "‖";
+
+        // 右边，x不变，只变宽度
+        handleDrag($resizeHolder, {
+          onDraging: function onDraging(steps) {
+            _this6.$ganttChart.style.pointerEvents = 'none'; // 禁用点击事件，防止拖拽移动之后，触发子元素的点击事件
+            var $holderWrap = $resizeHolder.parentElement;
+            $holderWrap.style.display = 'block';
+            var $taskItem = $resizeHolder.parentElement.parentElement;
+            var $taskItemWidth = $taskItem.offsetWidth;
+            var newWidth = $taskItemWidth + steps * _this6.step;
+            // 设置最小宽度以避免元素缩得太小
+            newWidth = Math.max(newWidth, _this6.step);
+            $taskItem.style.width = "".concat(newWidth, "px");
+          },
+          onDragEnd: function onDragEnd() {
+            var $holderWrap = $resizeHolder.parentElement;
+            $holderWrap.removeAttribute('style');
+            _this6.$ganttChart.style.pointerEvents = ''; // 恢复点击事件
+          }
+        }, this.step);
+        return $resizeHolder;
+      }
+
+      // 创建今日线
+    }, {
+      key: "createTodayLine",
+      value: function createTodayLine() {
+        var $todayLine = createElement('div', addPrefixCls('today-line'));
+        $todayLine.style.transform = "translateX(".concat(this.options.todayTranslateX + 15, "px)");
+        this.$taskBarRenderChunk.appendChild($todayLine);
+      }
+
+      // 重新渲染任务行在水平移动时，只修改样式，避免重新创建
+    }, {
+      key: "rerenderTaskRowOnScrollX",
+      value: function rerenderTaskRowOnScrollX() {
+        var translateX = this.options.translateX;
+        this.$taskBarRenderChunk.style.transform = "translateX(-".concat(translateX, "px");
+        var taskRowStyleBarList = document.querySelectorAll(".".concat(addPrefixCls('task-row-style-bar')));
+        taskRowStyleBarList.forEach(function (item) {
+          item.style.transform = "translateX(".concat(translateX, "px)");
+        });
+
+        // 判断 taskItem 水平滚动时是否在视图内
+        this.handleTaskItemInView();
+      }
     }, {
       key: "rerenderSvgBg",
-      value: function rerenderSvgBg(translateX, minorList, todayTranslateX) {
-        // 重新设置 todayTranslateX
-        this.options.todayTranslateX = todayTranslateX;
+      value:
+      // 重新渲染Svg背景
+      function rerenderSvgBg(translateX, minorList, todayTranslateX) {
+        // 重新设置
+        this.options.translateX = translateX;
+        this.options.minorList = minorList;
+        // 视图发生了变化
+        if (this.options.todayTranslateX !== todayTranslateX) {
+          this.options.todayTranslateX = todayTranslateX;
+          this.pxUnitAmp = dayjs().startOf('day').valueOf() / todayTranslateX;
+          // 切视图时，需要重新渲染
+          this.renderTaskBar();
+        }
+
         // 修改svg视图偏移
         this.setSvgViewBox(translateX);
-        this.createVerticalStripe(minorList, todayTranslateX);
+        this.createVerticalStripe(minorList);
+        // 水平滚动，重新渲染任务行
+        this.rerenderTaskRowOnScrollX();
       }
     }, {
       key: "setSvgViewBox",
       value: function setSvgViewBox(translateX) {
-        var _this$options6 = this.options,
-          viewWidth = _this$options6.width,
-          viewHeight = _this$options6.height;
-        this.$svg.setAttribute('viewBox', "".concat(translateX, " 0 ").concat(viewWidth, " ").concat(viewHeight));
+        this.$svg.setAttribute('viewBox', "".concat(translateX, " 0 ").concat(this.bodyClientWidth, " ").concat(this.bodyScrollHeight));
+      }
+
+      // 处理垂直滚动事件
+    }, {
+      key: "handleScroll",
+      value: function handleScroll(event) {
+        var scrollTop = event.currentTarget.scrollTop;
+        this.setScrollY(scrollTop);
+
+        // 处理虚拟滚动，计算开始位置
+        var newStartIndex = Math.floor(scrollTop / this.options.rowHeight);
+        if (newStartIndex !== this.virtualStartIndex) {
+          this.virtualStartIndex = newStartIndex;
+          // 重新渲染
+          this.renderTaskBar();
+        }
+        this.handleTaskItemInView();
+      }
+    }, {
+      key: "bodyClientWidth",
+      get:
+      // 内容区宽度
+      function get() {
+        var _this$$wrapper$getBou = this.$wrapper.getBoundingClientRect(),
+          $wrapperWidth = _this$$wrapper$getBou.width;
+        return $wrapperWidth;
+      }
+
+      // 内容区高度
+    }, {
+      key: "bodyClientHeight",
+      get: function get() {
+        var _this$$wrapper$getBou2 = this.$wrapper.getBoundingClientRect(),
+          $wrapperHeight = _this$$wrapper$getBou2.height;
+        return $wrapperHeight - HEADER_HEIGHT;
+      }
+
+      // 内容区滚动区域高度
+    }, {
+      key: "bodyScrollHeight",
+      get: function get() {
+        var height = this.getBarList.length * this.options.rowHeight + TOP_PADDING;
+        if (height < this.bodyClientHeight) {
+          height = this.bodyClientHeight;
+        }
+        return height;
+      }
+
+      // 获取任务条列表数据
+    }, {
+      key: "getBarList",
+      get: function get() {
+        return this.options.tasks;
+      }
+
+      // 获取可视区域的行，虚拟滚动处理
+    }, {
+      key: "getVisibleRows",
+      get: function get() {
+        var visibleHeight = this.bodyClientHeight;
+        // 多渲染几个，减少空白
+        var visibleRowCount = Math.ceil(visibleHeight / this.options.rowHeight) + 10;
+        return {
+          start: this.virtualStartIndex,
+          count: visibleRowCount
+        };
+      }
+    }, {
+      key: "getTaskDataById",
+      value: function getTaskDataById(taskId) {
+        return this.options.tasks.find(function (item) {
+          return item.id === taskId;
+        });
+      }
+
+      // 根据不同的视图确定拖动时的单位，在任何视图下都以一天为单位
+    }, {
+      key: "step",
+      get: function get() {
+        return ONE_DAY_MS / this.pxUnitAmp;
       }
     }]);
   }();
@@ -1415,9 +2438,9 @@
     function Gantt(wrapper, tasks, options) {
       _classCallCheck(this, Gantt);
       this.prefixCls = 'my-gantt';
+      this.tasks = tasks;
       this.options = options;
       this.setup_wrapper(wrapper);
-      this.setup_tasks(tasks);
       this._wheelTimer = null;
     }
     return _createClass(Gantt, [{
@@ -1447,33 +2470,37 @@
             var translateX = _ref.translateX,
               minorList = _ref.minorList,
               todayTranslateX = _ref.todayTranslateX;
+              _ref.pxUnitAmp;
             /* 
               1. viewType(视图类型)变化，导致translateX发生变化，会刷新 minorList，会重新渲染 chart的SVG背景
               2. translateX发生变化，会刷新 minorList，所以也需要重新渲染 chart的SVG背景
             */
             chart.rerenderSvgBg(translateX, minorList, todayTranslateX);
           },
-          onViewTypeChange: function onViewTypeChange(viewType) {
+          onViewTypeChange: function onViewTypeChange(_ref2) {
             var _this$options$onViewT, _this$options;
+            var viewType = _ref2.viewType,
+              pxUnitAmp = _ref2.pxUnitAmp;
             // 视图发生变化，会重新执行 setTranslateX，所以会自动重新渲染
-            (_this$options$onViewT = (_this$options = _this.options).onViewTypeChange) === null || _this$options$onViewT === void 0 || _this$options$onViewT.call(_this$options, viewType);
-          }
+            (_this$options$onViewT = (_this$options = _this.options).onViewTypeChange) === null || _this$options$onViewT === void 0 || _this$options$onViewT.call(_this$options, {
+              viewType: viewType,
+              pxUnitAmp: pxUnitAmp
+            });
+          },
+          onTimelineClick: this.options.onTimelineClick
         });
 
         // 实例化Chart
         var chart = new Chart(this.$gantWrap, {
-          width: timeAxis.headerWidth,
-          // 宽
-          height: 6000,
-          // 高
+          tasks: this.tasks,
+          rowHeight: 40,
+          // 行高
           translateX: timeAxis.translateX,
           // 偏移量
           todayTranslateX: timeAxis.todayTranslateX,
           minorList: timeAxis.getMinorList(),
           lineColor: this.options.lineColor || '#f0f0f0',
           // 线条颜色
-          curDayLineColor: this.options.curDayLineColor || '#1890ff',
-          // 当天日期的线条颜色
           weekBarBg: this.options.weekBarBg || '#fafbfd',
           // 周末条的背景色
           onWheel: function onWheel(offsetX) {
@@ -1485,13 +2512,13 @@
             _this._wheelTimer = window.setTimeout(function () {
               timeAxis.isMoveing = false;
             }, 100);
-          }
+          },
+          onArrowBtnClick: function onArrowBtnClick(_ref3) {
+            var translateX = _ref3.translateX;
+            timeAxis.setTranslateX(translateX);
+          },
+          onTaskBarClick: this.options.onTaskBarClick
         });
-      }
-    }, {
-      key: "setup_tasks",
-      value: function setup_tasks(tasks) {
-        this.tasks = tasks;
       }
     }]);
   }();

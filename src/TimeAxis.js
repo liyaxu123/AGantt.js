@@ -4,7 +4,7 @@
  * @param {string | HTMLElement} wrapper 容器
  * @param {object} options 视图配置，默认为日视图
 */
-import { createElement, addPrefixCls, viewTypeList, getViewTypeConfig } from './utils';
+import { createElement, addPrefixCls, viewTypeList, getViewTypeConfig, handleDrag } from './utils';
 import dayjs from 'dayjs';
 import isBetween from 'dayjs/plugin/isBetween';
 import weekday from 'dayjs/plugin/weekday';
@@ -49,7 +49,7 @@ class TimeAxis {
 
   // 组装DOM结构
   initDom() {
-    const $header = createElement('header', addPrefixCls('time-axis'));
+    const $header = createElement('header', addPrefixCls('header'));
     const $tableHeader = this.createTableHeader();
     const $timeAxisHeader = this.createTimeAxis();
 
@@ -108,33 +108,32 @@ class TimeAxis {
   createTimeAxisHeader() {
     const $timeAxisHeader = createElement('div', addPrefixCls('time-axis-header'));
 
-    let positionX = 0;
-    const handleMouseMove = (event) => {
-      event.preventDefault();
-      const moveX = event.clientX;
-
-      const x = (moveX - positionX) - this.translateX;
-      this.setTranslateX(-x);
-    }
-
-    const handleMouseUp = () => {
-      this.isMoveing = false;
-
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    }
-
     // 绑定拖动事件
-    $timeAxisHeader.onmousedown = (event) => {
-      event.stopPropagation();
-      event.preventDefault();
-      this.isMoveing = true;
+    handleDrag($timeAxisHeader, {
+      onDragBefore: () => {
+        this.isMoveing = true;
+      },
+      onDraging: (deltaX) => {
+        const x = deltaX - this.translateX;
+        this.setTranslateX(-x);
+      },
+      onDragEnd: () => {
+        this.isMoveing = false;
+      }
+    });
 
-      positionX = event.clientX;
+    // 通过事件代理，绑定点击事件
+    $timeAxisHeader.addEventListener('click', (e) => {
+      const $target = e.target;
 
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
-    }
+      if (
+        $target.className === addPrefixCls('time-axis-major-label') ||
+        $target.className === addPrefixCls('time-axis-minor-label')
+      ) {
+        const dataTime = $target.getAttribute('data-time');
+        this.options.onTimelineClick?.(dataTime);
+      }
+    })
 
     return $timeAxisHeader;
   }
@@ -142,33 +141,32 @@ class TimeAxis {
   // 创建主轴DOM
   createTimeAxisMajor(wrapper) {
     const majorList = this.getMajorList();
+    // 使用 fragment 优化DOM批量创建
+    const fragment = document.createDocumentFragment();
     majorList.forEach((item) => {
       const $major = createElement('div', addPrefixCls('time-axis-major'));
       const $majorLabel = createElement('div', addPrefixCls('time-axis-major-label'));
       $majorLabel.innerText = item.label;
+      $majorLabel.setAttribute('data-time', item.label);
       $major.appendChild($majorLabel);
-      // 设置宽度
-      $major.style.width = `${item.width}px`;
-      // 设置left
-      $major.style.left = `${item.left}px`;
-      wrapper.appendChild($major);
+      $major.style.cssText = `width: ${item.width}px; left: ${item.left}px`;
+      fragment.appendChild($major);
     })
+    wrapper.appendChild(fragment);
   }
 
   // 创建次轴DOM
   createTimeAxisMinor(wrapper) {
     const minorList = this.getMinorList();
-    // console.log('minorList', minorList);
-
+    const fragment = document.createDocumentFragment();
     minorList.forEach((item) => {
       const $minor = createElement('div', addPrefixCls('time-axis-minor'));
       const $minorLabel = createElement('div', addPrefixCls('time-axis-minor-label'));
       $minorLabel.innerText = item.label;
+      $minorLabel.setAttribute('data-time', item.key);
       $minor.appendChild($minorLabel);
-      // 设置宽度
-      $minor.style.width = `${item.width}px`;
-      // 设置left
-      $minor.style.left = `${item.left}px`;
+      $minor.style.cssText = `width: ${item.width}px; left: ${item.left}px`;
+
       // 标识周末
       if (item.isWeek) {
         $minor.setAttribute('isWeek', true)
@@ -178,8 +176,9 @@ class TimeAxis {
       if (item.isToday) {
         $minor.setAttribute('curDay', true)
       }
-      wrapper.appendChild($minor);
+      fragment.appendChild($minor)
     })
+    wrapper.appendChild(fragment);
   }
 
   // 创建返回今日
@@ -221,7 +220,7 @@ class TimeAxis {
     // 执行 setTranslateX，会自动重新渲染
     this.setTranslateX(translateX);
 
-    this.options.onViewTypeChange?.(viewType);
+    this.options.onViewTypeChange?.({ viewType, pxUnitAmp: this.pxUnitAmp });
   }
 
   setBackTodayDisplay() {
@@ -260,6 +259,7 @@ class TimeAxis {
       translateX,
       minorList: this.getMinorList(),
       todayTranslateX: this.todayTranslateX,
+      pxUnitAmp: this.pxUnitAmp,
     });
   }
 
@@ -568,7 +568,7 @@ class TimeAxis {
         this.$backToday.style.opacity = 0;
       }
     } else {
-      this.$timeAxis.style.cursor = 'ew-resize';
+      this.$timeAxis.removeAttribute('style');
       if (this.$backToday) {
         this.$backToday.style.opacity = 1;
       }
