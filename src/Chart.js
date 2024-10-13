@@ -2,9 +2,10 @@
   图表
 */
 
-import { addPrefixCls, createElement, createSvgElement, HEADER_HEIGHT, TOP_PADDING, handleDrag, ONE_DAY_MS } from "./utils";
+import { addPrefixCls, createElement, createSvgElement, HEADER_HEIGHT, TOP_PADDING, handleDrag, ONE_DAY_MS, useHover } from "./utils";
 import throttle from 'lodash/throttle';
 import dayjs from "dayjs";
+import DOMPurify from 'dompurify';
 
 class Chart {
   constructor(wrapper, options = {}) {
@@ -16,6 +17,8 @@ class Chart {
     this.scrollTop = 0;
     // 垂直虚拟滚动开始索引
     this.virtualStartIndex = 0;
+    // 是否在设置任务进度
+    this.isSetProgressIng = false;
 
     this.initDom()
   }
@@ -106,6 +109,10 @@ class Chart {
     this.createSvgBg($ganttChart);
     // 创建横条纹管道
     this.createTaskBarRenderChunk($ganttChart);
+    // 创建拖动展示遮罩元素
+    if (this.options.showDragMask) {
+      this.createDragMask($ganttChart);
+    }
     wrapper.appendChild($ganttChart);
   }
 
@@ -119,6 +126,25 @@ class Chart {
     if (Math.abs(event.deltaX) > 0) {
       this.options.onWheel?.(event.deltaX);
     }
+  }
+
+  // 创建拖动遮罩元素
+  createDragMask(wrapper) {
+    const $dragMaskWrap = createElement('div', addPrefixCls('drag-mask-wrapper'));
+    $dragMaskWrap.style.cssText = `height: ${this.bodyScrollHeight}px; transform: translateX(-${this.options.translateX}px`;
+
+    const $dragMask = createElement('div', addPrefixCls('drag-mask'));
+    // 显示开始时间
+    const $dragMaskStart = createElement('div', addPrefixCls('drag-mask-start'));
+    // 显示结束时间
+    const $dragMaskEnd = createElement('div', addPrefixCls('drag-mask-end'));
+
+    $dragMask.appendChild($dragMaskStart);
+    $dragMask.appendChild($dragMaskEnd);
+    $dragMaskWrap.appendChild($dragMask);
+    wrapper.appendChild($dragMaskWrap);
+    this.$dragMaskWrap = $dragMaskWrap;
+    this.$dragMask = $dragMask;
   }
 
   // 创建 SVG 背景
@@ -282,29 +308,181 @@ class Chart {
         const taskItemTranslateX = parseFloat($taskItem.getAttribute('style').match(/translateX\(([-\d.]+)px/)[1]);
         let newTranslateX = taskItemTranslateX + steps * this.step;
         $taskItem.style.transform = `translateX(${newTranslateX}px)`;
+
+        // 显示遮罩
+        if (this.options.showDragMask) {
+          const top = parseFloat($taskItem.parentElement.parentElement.style.top);
+          this.showDragMask($taskItem.offsetWidth, newTranslateX, top);
+        }
       },
       onDragEnd: () => {
         this.$ganttChart.style.pointerEvents = '';  // 恢复点击事件
+        // 隐藏遮罩
+        if (this.options.showDragMask) {
+          this.$dragMask.style.display = 'none';
+        }
+        // 移动之后，更新 tasks 数据
+        this.dragAfterSetDate($taskItem);
       },
     }, this.step);
 
+    // 调整进度部分
+    const $taskItemProgressWrapper = this.taskItemProgressWrapper(data);
+    $taskItem.appendChild($taskItemProgressWrapper);
+
     // 内容部分
-    const $taskItemContent = createElement('div', addPrefixCls('task-item-content'));
-    $taskItemContent.innerHTML = data.title;
+    const $taskItemContent = this.taskItemContent(data);
     $taskItem.appendChild($taskItemContent);
 
+    // resize部分
+    const $taskItemHandleWrapper = this.taskItemHandleWrapper();
+    $taskItem.appendChild($taskItemHandleWrapper);
+
+    // tooltip部分
+    // $taskItem 处理 hover 事件
+    let $taskItemTooltip = null;
+    useHover($taskItem, (isHover) => {
+      const $taskItemProgressHandle = $taskItem.querySelector(`.${addPrefixCls('task-item-progress-handle')}`);
+
+      if (isHover) {
+        if (this.options.showTooltip && this.isSetProgressIng === false) {
+          // 动态创建 tooltip，保证最新数据
+          const taskItemId = $taskItem.getAttribute('data-task-id') * 1;
+          const taskData = this.getTaskDataById(taskItemId);
+          $taskItemTooltip = this.taskItemTooltip(taskData);
+          $taskItem.appendChild($taskItemTooltip);
+          $taskItemTooltip.parentElement.parentElement.style.zIndex = '9999999999999';
+        }
+
+        $taskItemProgressHandle.style.display = 'block';
+      } else {
+        if ($taskItemTooltip) {
+          $taskItemTooltip.parentElement.parentElement.style.zIndex = 'unset';
+          // 删除 tooltip
+          $taskItemTooltip?.remove();
+          $taskItemTooltip = null;
+        }
+
+        if (this.isSetProgressIng === false) {
+          $taskItemProgressHandle.style.display = 'none';
+        }
+      }
+    })
+
+    $taskItemWrapper.appendChild($taskItem);
+    return $taskItemWrapper;
+  }
+
+  // 创建 taskItem 的进度条部分
+  taskItemProgressWrapper({ progress }) {
+    const $taskItemProgressWrapper = createElement('div', addPrefixCls('task-item-progress-wrapper'));
+    $taskItemProgressWrapper.style.background = `linear-gradient(to right, transparent ${progress * 100}%, rgba(0, 0, 0, 0.1) ${progress * 100}% 100%)`;
+
+    const $taskItemProgressText = createElement('span', addPrefixCls('task-item-progress-text'));
+    $taskItemProgressText.innerHTML = `${Math.round(progress * 100)}%`;
+    $taskItemProgressWrapper.appendChild($taskItemProgressText);
+
+    const $taskItemProgressHandle = this.taskItemProgressHandle(progress);
+    $taskItemProgressWrapper.appendChild($taskItemProgressHandle);
+    return $taskItemProgressWrapper;
+  }
+
+  // 创建进度调节按钮
+  taskItemProgressHandle(progress) {
+    const $taskItemProgressHandle = createElement('div', addPrefixCls('task-item-progress-handle'));
+    $taskItemProgressHandle.innerHTML = '▲';
+    // 设置初始位置
+    $taskItemProgressHandle.style.left = `${Math.round(progress * 100)}%`;
+
+    // 监听拖动事件
+    let $taskItem = null;
+    let $taskItemHandleWrapper = null;
+    let $taskItemProgressText = null;
+    let $taskItemProgressWrapper = null;
+    handleDrag($taskItemProgressHandle, {
+      onDragBefore: (ev) => {
+        this.isSetProgressIng = true;
+        $taskItem = ev.target.parentElement.parentElement;
+        $taskItemHandleWrapper = $taskItem.querySelector(`.${addPrefixCls('task-item-handle-wrapper')}`);
+        $taskItemProgressText = ev.target.previousElementSibling;
+        $taskItemProgressWrapper = ev.target.parentElement;
+        const $taskItemTooltipWrapper = $taskItem.querySelector(`.${addPrefixCls('task-item-tooltip-wrapper')}`);
+
+        $taskItemHandleWrapper.style.display = 'none';
+        $taskItemTooltipWrapper.style.display = 'none';
+        $taskItemProgressHandle.style.display = 'block';
+      },
+      onDraging: (deltaX, ev) => {
+        const { left, right, width } = $taskItem.getBoundingClientRect();
+
+        if (ev.clientX >= left && ev.clientX <= right) {
+          // 计算进度
+          const progress = (ev.clientX - left) / width;
+          let progressPercent = `${Math.round(progress * 100)}%`;
+
+          $taskItemProgressText.style.display = 'block';
+          $taskItemProgressText.innerHTML = progressPercent;
+          $taskItemProgressWrapper.style.background = `linear-gradient(to right, transparent ${progressPercent}, rgba(0, 0, 0, 0.1) ${progressPercent} 100%)`;
+          $taskItemProgressHandle.style.left = progressPercent;
+
+          // 修改数据
+          this.updateTaskData({
+            id: $taskItem.getAttribute('data-task-id'),
+            progress: progress,
+          });
+        }
+      },
+      onDragEnd: () => {
+        $taskItemHandleWrapper.removeAttribute('style');
+        $taskItemProgressText.style.display = 'none';
+        $taskItemProgressHandle.style.display = 'none';
+
+        $taskItem = null;
+        $taskItemHandleWrapper = null;
+        $taskItemProgressText = null;
+        $taskItemProgressWrapper = null;
+        this.isSetProgressIng = false;
+      },
+    });
+
+    return $taskItemProgressHandle;
+  }
+
+  // 创建 taskItem 的内容部分
+  taskItemContent(data) {
+    const $taskItemContent = createElement('div', addPrefixCls('task-item-content'));
+    const taskItemContentStr = this.options.renderTaskbarContent?.(data);
+    if (taskItemContentStr) {
+      $taskItemContent.innerHTML = DOMPurify.sanitize(taskItemContentStr);
+    } else {
+      $taskItemContent.innerHTML = `<div class="${addPrefixCls('task-item-content-item')}">${data.title}</div>`;
+    }
+    return $taskItemContent;
+  }
+
+  // 创建 taskItem 的调整大小部分
+  taskItemHandleWrapper() {
     const $taskItemHandleWrapper = createElement('div', addPrefixCls('task-item-handle-wrapper'));
     // 左侧把手
     const $resizeHolderLeft = this.taskItemResizeHolderLeft();
     // 右侧把手
     const $resizeHolderRight = this.taskItemResizeHolderRight();
-
     $taskItemHandleWrapper.appendChild($resizeHolderLeft);
     $taskItemHandleWrapper.appendChild($resizeHolderRight);
-    $taskItem.appendChild($taskItemHandleWrapper);
+    return $taskItemHandleWrapper;
+  }
 
-    $taskItemWrapper.appendChild($taskItem);
-    return $taskItemWrapper;
+  // 创建 taskItem 的 tooltip
+  taskItemTooltip(data) {
+    const $tooltipWrap = createElement('div', addPrefixCls('task-item-tooltip-wrapper'));
+    const tooltipStr = this.options.renderTooltip?.(data);
+    if (tooltipStr) {
+      // 使用 DOMPurify 进行 XSS 过滤
+      $tooltipWrap.innerHTML = DOMPurify.sanitize(tooltipStr);
+    } else {
+      $tooltipWrap.innerHTML = `<div class="${addPrefixCls('task-item-tooltip')}">任务名称：${data.title}</div>`;
+    }
+    return $tooltipWrap;
   }
 
   taskItemResizeHolderLeft() {
@@ -335,11 +513,22 @@ class Chart {
         }
 
         $taskItem.style.cssText = `width: ${newWidth}px; transform: translateX(${newTranslateX}px)`;
+
+        if (this.options.showDragMask) {
+          const top = parseFloat($taskItem.parentElement.parentElement.style.top);
+          this.showDragMask(newWidth, newTranslateX, top);
+        }
       },
       onDragEnd: () => {
         const $holderWrap = $resizeHolder.parentElement;
         $holderWrap.removeAttribute('style');
         this.$ganttChart.style.pointerEvents = '';  // 恢复点击事件
+        // 拖拽结束，更新 tasks 数据
+        const $taskItem = $resizeHolder.parentElement.parentElement;
+        this.dragAfterSetDate($taskItem);
+        if (this.options.showDragMask) {
+          this.$dragMask.style.display = 'none';
+        }
       },
     }, this.step);
     return $resizeHolder;
@@ -361,14 +550,73 @@ class Chart {
         // 设置最小宽度以避免元素缩得太小
         newWidth = Math.max(newWidth, this.step);
         $taskItem.style.width = `${newWidth}px`;
+
+        if (this.options.showDragMask) {
+          const translateX = parseFloat($taskItem.getAttribute('style').match(/translateX\(([-\d.]+)px/)[1]);
+          const top = parseFloat($taskItem.parentElement.parentElement.style.top);
+          this.showDragMask(newWidth, translateX, top);
+        }
       },
       onDragEnd: () => {
         const $holderWrap = $resizeHolder.parentElement;
         $holderWrap.removeAttribute('style');
         this.$ganttChart.style.pointerEvents = '';  // 恢复点击事件
+        // 拖拽结束，更新 tasks 数据
+        const $taskItem = $resizeHolder.parentElement.parentElement;
+        this.dragAfterSetDate($taskItem);
+        if (this.options.showDragMask) {
+          this.$dragMask.style.display = 'none';
+        }
       },
     }, this.step)
     return $resizeHolder;
+  }
+
+  /**
+   * 显示拖拽遮罩
+   * @param {number} width - 遮罩宽度
+   * @param {number} translateX - 遮罩水平偏移量
+   * @param {number} top - 遮罩显示时间的垂直偏移量
+ */
+  showDragMask(width, translateX, top) {
+    this.$dragMask.style.width = `${width}px`;
+    // 修改遮罩的偏移量
+    this.$dragMask.style.transform = `translateX(${translateX}px)`;
+    // 设置遮罩开始时间和结束时间的文本和位置
+    const startTime = dayjs(translateX * this.pxUnitAmp).format('YYYY-MM-DD');
+    const endTime = dayjs((translateX + width) * this.pxUnitAmp).subtract(1, 'day').format('YYYY-MM-DD');
+    const $dargMaskStart = this.$dragMask.firstChild;
+    const $dargMaskEnd = this.$dragMask.lastChild;
+    $dargMaskStart.innerHTML = startTime;
+    $dargMaskEnd.innerHTML = endTime;
+    $dargMaskStart.style.top = `${top}px`;
+    $dargMaskEnd.style.top = `${top}px`;
+
+    this.$dragMask.style.display = 'block';
+  }
+
+  // 拖拽结束后，设置 taskItem 的数据
+  dragAfterSetDate(taskItemEle) {
+    const $taskItemWidth = taskItemEle.offsetWidth;
+    const taskItemTranslateX = parseFloat(taskItemEle.getAttribute('style').match(/translateX\(([-\d.]+)px/)[1]);
+    const startDate = dayjs(taskItemTranslateX * this.pxUnitAmp).format('YYYY-MM-DD');
+    const endDate = dayjs((taskItemTranslateX + $taskItemWidth - this.step) * this.pxUnitAmp).format('YYYY-MM-DD');
+    this.updateTaskData({
+      id: taskItemEle.getAttribute('data-task-id'),
+      startDate,
+      endDate,
+    });
+  }
+
+  // 更新 tasks 数据
+  updateTaskData(data) {
+    const taskItem = this.options.tasks.find((item) => String(item.id) === data.id);
+
+    // 更新数据
+    for (let key in data) {
+      if (key === 'id') continue;
+      taskItem[key] = data[key];
+    }
   }
 
   // 创建今日线
@@ -382,6 +630,9 @@ class Chart {
   rerenderTaskRowOnScrollX() {
     const translateX = this.options.translateX;
     this.$taskBarRenderChunk.style.transform = `translateX(-${translateX}px`;
+    if (this.options.showDragMask) {
+      this.$dragMaskWrap.style.transform = `translateX(-${translateX}px`;
+    }
     const taskRowStyleBarList = document.querySelectorAll(`.${addPrefixCls('task-row-style-bar')}`);
     taskRowStyleBarList.forEach((item) => {
       item.style.transform = `translateX(${translateX}px)`;
